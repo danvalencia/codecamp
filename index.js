@@ -10,9 +10,6 @@ const client = new Twitter({
   access_token_secret: process.env.ACCESS_SECRET
 })
 
-var params = {screen_name: 'nodejs'};
-
-
 const getFollowersIdsForUser = (user) => {
   const params = {
     screen_name: user
@@ -29,8 +26,23 @@ const getFollowersIdsForUser = (user) => {
   })
 }
 
+const getFriendIdsForUser = (user) => {
+  const params = {
+    screen_name: user
+  }
+
+  return new Promise((resolve, reject) => {
+    client.get('friends/ids', params, (error, friendIds, response) => {
+      if (error) {
+        reject(error)
+      } else {
+        resolve(friendIds.ids)
+      }
+    })
+  })
+}
+
 const getScreenNamesForUsers = (user, userIds) => {
-  console.log(userIds)
   const params = {
     user_id: userIds
   }
@@ -44,7 +56,6 @@ const getScreenNamesForUsers = (user, userIds) => {
       }
     })
   })
-
 }
 
 const getScreenNameForAllUsers = (followerIds) => {
@@ -61,47 +72,46 @@ const getScreenNameForAllUsers = (followerIds) => {
   return Promise.all(promiseArray)
 }
 
-const getCommonFollowers = (user1, user2) => {
-  const p1 = getFollowersIdsForUser(user1) // [1,2,3,4,5]
-  const p2 = getFollowersIdsForUser(user2)// [2,3,5]
+const getCommonIds = (ids) => {
+  const sortedFollowerIds = ids.sort()
   const commonFollowers = []
-  return Promise.all([p1, p2]).then((followerIds) => {
-    const sortedFollowerIds = followerIds.reduce((a,b) => a.concat(b), []).sort()
 
-    console.log("Sorted follower ids")
-    console.log(sortedFollowerIds)
+  sortedFollowerIds.reduce((a,b) => {
+    if (a === b) {
+      commonFollowers.push(a)
+    }
+    return b
+  })
 
-    sortedFollowerIds.reduce((a,b) => {
-      if (a === b) {
-        commonFollowers.push(a)
-      }
-      return b
-    })
+  return new Promise(resolve => resolve(commonFollowers))
+}
 
-    return new Promise(resolve => resolve(commonFollowers))
+const getCommonFollowers = (user1, user2) => {
+  return Promise.all([
+    getFollowersIdsForUser(user1),
+    getFollowersIdsForUser(user2)
+  ]).then((followerIds) => {
+    return getCommonIds(followerIds.reduce((a,b) => a.concat(b), []))
   })
 }
 
-getCommonFollowers('_DanValencia', 'hackergil')
-.then(commonFollowerIds => {
-  return getScreenNameForAllUsers(commonFollowerIds)
-})
-.then(commonFollowers => {
-  const screenNameArray = commonFollowers.reduce((a,b) => a.concat(b), []).map(user => user.screen_name)
-  console.log("Common screen names")
-  console.log(screenNameArray)
-})
-.catch(reason => console.log(reason))
+const getCommonFriends = (user1, user2) => {
+  return Promise.all([
+    getFriendIdsForUser(user1),
+    getFriendIdsForUser(user2)
+  ]).then((friendIds) => {
+    return getCommonIds(friendIds.reduce((a,b) => a.concat(b), []))
+  })
+}
 
-// getFollowersIdsForUser("_DanValencia")
-// .then((followerIds) => {
-//   return getScreenNameForAllUsers(followerIds)
-// })
-// .then((screenNames) => {
-//   console.log("Screen names are:")
-//   console.log(screenNameArray)
-// })
-// .catch((reason) => {
-//   console.log('Error occurred because of:')
-//   console.log(reason)
-// })
+Promise.all([
+  getCommonFollowers('_DanValencia', 'hackergil'),
+  getCommonFriends('_DanValencia', 'hackergil')
+]).then((friendsAndFollowersIds) => {
+  return getCommonIds(friendsAndFollowersIds.reduce((a,b) => a.concat(b), []))
+}).then((commonFriendsAndFollowersIds) => {
+  return getScreenNameForAllUsers(commonFriendsAndFollowersIds)
+}).then((commonFriendsAndFollowers) => {
+  const commonFriendsScreenNames = commonFriendsAndFollowers[0].map(u => u.screen_name)
+  console.log(commonFriendsScreenNames)
+}).catch(reason => console.log(reason))
