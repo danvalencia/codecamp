@@ -4,8 +4,16 @@ const cache = new CacheManager('myproject')
 
 const getFollowersIdsForUser = (user) => {
   const endpoint = 'followers/ids'
-  const params = {
-    screen_name: user
+
+  let params = {}
+  if (typeof user === 'number') {
+    params = {
+      user_id: user
+    }
+  } else {
+    params = {
+      screen_name: user
+    }
   }
 
   return new Promise((resolve, reject) => {
@@ -29,8 +37,16 @@ const getFollowersIdsForUser = (user) => {
 
 const getFriendIdsForUser = (user) => {
   const endpoint = 'friends/ids'
-  const params = {
-    screen_name: user
+
+  let params = {}
+  if (typeof user === 'number') {
+    params = {
+      user_id: user
+    }
+  } else {
+    params = {
+      screen_name: user
+    }
   }
 
   return new Promise((resolve, reject) => {
@@ -94,17 +110,17 @@ const getScreenNameForAllUsers = (followerIds) => {
   return Promise.all(promiseArray)
 }
 
-const intersection = (ids) => {
-  const sortedFollowerIds = ids.reduce((a,b) => a.concat(b), []).sort()
-  const commonFollowers = []
+const intersection = (arr1, arr2) => {
+  const sortedArr = arr1.concat(arr2).sort()
+  const intersectionArr = []
 
-  sortedFollowerIds.reduce((a,b) => {
+  sortedArr.reduce((a,b) => {
     if (a === b) {
-      commonFollowers.push(a)
+      intersectionArr.push(a)
     }
     return b
   })
-  return new Promise(resolve => resolve(commonFollowers))
+  return new Promise(resolve => resolve(intersectionArr))
 }
 
 const getCommonFollowers = (user1, user2) => {
@@ -112,7 +128,7 @@ const getCommonFollowers = (user1, user2) => {
     getFollowersIdsForUser(user1),
     getFollowersIdsForUser(user2)
   ]).then((followerIds) => {
-    return intersection(followerIds)
+    return intersection(followerIds[0], followerIds[1])
   })
 }
 
@@ -121,31 +137,48 @@ const getCommonFriends = (user1, user2) => {
     getFriendIdsForUser(user1),
     getFriendIdsForUser(user2)
   ]).then((friendIds) => {
-    return intersection(friendIds)
+    return intersection(friendIds[0], friendIds[1])
   })
 }
 
-const buildGraph = (friends) => {
-  const friendIds = friends.map(f => f.id)
+const buildGraph = (friendIds) => {
   console.log("Friends Ids")
   console.log(friendIds)
-  return Promise.all(friends.map(friend => getFriendIdsForUser(friend.id)))
+  const friendPromises = []
+
+  friendIds.forEach(friend => {
+    friendPromises.push(
+      getFriendIdsForUser(friend).then(friendsOfFriend => {
+        return {id: friend, friends: friendsOfFriend}
+      })
+    )
+  })
+
+  return Promise.all(friendPromises).then(friendMaps => {
+    const commonFriends = friendMaps.map(f => f.id)
+    const graphPromise = [] // Graph will be a [id, [edge1, edge2]]
+    friendMaps.forEach(friend => {
+      graphPromise.push(
+        intersection(commonFriends, friend.friends)
+        .then( friendsIntersection => {
+          console.log("Intersection")
+          console.log(friendsIntersection)
+          return [friend.id, friendsIntersection]
+        })
+      )
+    })
+    return Promise.all(graphPromise)
+  })
 }
 
 Promise.all([
   getCommonFollowers('_DanValencia', 'hackergil'),
   getCommonFriends('_DanValencia', 'hackergil')
 ]).then((friendsAndFollowersIds) => {
-  return intersection(friendsAndFollowersIds)
+  return intersection(friendsAndFollowersIds[0], friendsAndFollowersIds[1])
 }).then((commonFriendsAndFollowersIds) => {
-  return getScreenNameForAllUsers(commonFriendsAndFollowersIds)
- }).then((commonFriendsAndFollowers) => {
-  return commonFriendsAndFollowers[0].map(u => {
-    return {
-      screenName: u.screen_name,
-      id: u.id
-    }
-  })
-}).then(friends => {
-  console.log(friends)
+  return buildGraph(commonFriendsAndFollowersIds)
+}).then((friendGraph) => {
+  console.log("The Graph")
+  console.log(friendGraph)
 }).catch(reason => console.log(reason))
