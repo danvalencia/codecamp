@@ -5,6 +5,7 @@
   "author": "Daniel Valencia",
   "license": "MIT",
   "dependencies": {
+    "mongodb": "^2.2.16",
     "node-env-file": "^0.1.8",
     "twitter": "^1.7.0"
   }
