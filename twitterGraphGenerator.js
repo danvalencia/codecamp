@@ -76,27 +76,31 @@ const convertToTGF = (graphContainer) => {
   return tgfArray.join("")
 }
 
-Promise.all([
-  getCommonFollowers('_DanValencia', 'hackergil'),
-  getCommonFriends('_DanValencia', 'hackergil')
-]).then((friendsAndFollowersIds) => {
-  return intersection(friendsAndFollowersIds[0], friendsAndFollowersIds[1])
-}).then((commonFriendsAndFollowersIds) => {
-  return buildGraph(commonFriendsAndFollowersIds)
-}).then((friendGraph) => {
-  const friendsIds = friendGraph.map(f => f[0])
-  return TwitterClient.getScreenNamesForUsers(friendsIds.join(',')).then(users => {
-    // return users.map(user => {return {id: user.id, name: user.screen_name}})
-    return users.reduce((theMap, u) => {
-      theMap[u.id] = u.screen_name;
-      return theMap
-    }, {})
-  }).then(userScreenNameMap => {
-    return {
-      userScreenNameMap: userScreenNameMap,
-      graph: friendGraph
-    }
-  })
-}).then(graphObject => {
-  console.log(convertToTGF(graphObject))
-}).catch(reason => console.log(reason))
+const createCommonFollowerGraph = (user1, user2) => {
+  return Promise.all([
+    getCommonFollowers(user1, user2),
+    getCommonFriends(user1, user2)
+  ]).then((friendsAndFollowersIds) => {
+    return intersection(friendsAndFollowersIds[0], friendsAndFollowersIds[1])
+  }).then((commonFriendsAndFollowersIds) => {
+    return buildGraph(commonFriendsAndFollowersIds)
+  }).then((friendGraph) => {
+    const friendsIds = friendGraph.map(f => f[0])
+    return TwitterClient.getScreenNamesForUsers(friendsIds.join(',')).then(users => {
+      // return users.map(user => {return {id: user.id, name: user.screen_name}})
+      return users.reduce((theMap, u) => {
+        theMap[u.id] = u.screen_name;
+        return theMap
+      }, {})
+    }).then(userScreenNameMap => {
+      return {
+        userScreenNameMap: userScreenNameMap,
+        graph: friendGraph
+      }
+    })
+  }).then(graphObject => {
+    return convertToTGF(graphObject)
+  }).catch(reason => console.log(reason))
+}
+
+module.exports = createCommonFollowerGraph
